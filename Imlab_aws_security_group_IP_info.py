@@ -10,8 +10,8 @@ import uuid as myuuid
 from botocore.exceptions import ClientError
 
 __author__ = "Jiamao Zheng <jiamaoz@yahoo.com>"
-__version__ = "Revision: 0.0.1"
-__date__ = "Date: 2017-09-28"
+__version__ = "Revision: 0.0.2"
+__date__ = "Date: 2017-10-11"
 
 class SecurityGroup(object):
     def __init_(self):
@@ -23,6 +23,9 @@ class SecurityGroup(object):
 
         # log path 
         self.log_path = ''
+
+        # bucket path
+        self.bucket_path = ''
 
     # Logging function 
     def getLog(self):
@@ -68,6 +71,9 @@ class SecurityGroup(object):
         # setup commond line arguments 
         parser = argparse.ArgumentParser()
 
+        # bucket path 
+        parser.add_argument('-b', '--bucket_path', required=False, default='b', type=str, help='a s3 bucket/subfolder (e.g. imlab-log/security-group/) you choosen to save output')
+
         # output path 
         parser.add_argument('-o', '--output_path', required=False, default='o', type=str, help='a directory path you choosen to save output')
 
@@ -78,7 +84,10 @@ class SecurityGroup(object):
         args = parser.parse_args()
         self.output_path = args.output_path.strip()
         self.log_path = args.log_path.strip()
-
+        self.bucket_path = args.bucket_path.strip()
+        
+        if self.bucket_path[-1] != '/':
+            self.bucket_path = self.bucket_path + '/'
         if self.output_path != 'o' and not os.path.exists(self.output_path):
             os.makedirs(self.output_path) 
         if self.log_path != 'l' and not os.path.exists(self.log_path):
@@ -192,9 +201,6 @@ class SecurityGroup(object):
         security_groups = pandas.DataFrame()
         security_groups =pandas.concat([groups_name_pd, groups_id_pd, groups_description_pd, ips_pd, citys_pd, states_pd, country_name_pd, zip_pd], axis = 1)
 
-        # security_groups = pandas.DataFrame({'security_group_description': groups, 'ip_address': ip_addresses, 'city': citys, 
-        #     'state':states, 'country_name': country_names, 'zip_code': zip_codes})
-
         # write data to files in csv and html format 
         id = str(myuuid.uuid4())
         find_ip_time = datetime.now().strftime('%Y-%m-%d') 
@@ -202,8 +208,6 @@ class SecurityGroup(object):
         result_path = ''
         if self.output_path == 'o':
             result_path = '../output/Im_lab_AWS_security_groups_ip_info-' + id + '-' + find_ip_time  
-             # create a new directory for hosting data 
-            # os.chdir(result_path)
         else:
             if self.output_path[-1] != '/':
                 self.output_path = self.output_path + '/'
@@ -218,6 +222,31 @@ class SecurityGroup(object):
 
         # Close the Pandas Excel writer and output the Excel file.
         writer.save()
+
+        # Push files to s3://imlab-logs/security-group
+        path = result_path + '/Im_lab_AWS_security_groups_ip_info-' + id + '-' + find_ip_time + '.xlsx'
+
+        msg = "\nThe output can be located at your local computer - %s " %path 
+        self.logger.info(msg)
+        print(msg) 
+
+        s3=boto3.resource('s3')
+        if self.bucket_path == 'b/':
+            os.system('aws s3 cp %s s3://imlab-logs/security-group/' %path)
+
+            msg = "\nThe output is also uploaded to your s3 bucket - s3://imlab-logs/security-group/ "
+            self.logger.info(msg)
+            print(msg) 
+        elif s3.Bucket(self.bucket_path.split('/')[0]) in s3.buckets.all() and self.bucket_path != 'b/':
+            os.system('aws s3 cp %s s3://%s' %(path, self.bucket_path))
+
+            msg = "\nThe output is also uploaded to your s3 bucket - %s " %self.bucket_path
+            self.logger.info(msg)
+            print(msg) 
+        else:       
+            msg = "\n-----------------ATTENTIONS-------------------\n--Please check the existence of your s3 bucket\n-----------------ATTENTIONS-------------------"
+            self.logger.info(msg)
+            print(msg) 
 
         # security_groups.to_csv('Im_lab_AWS_security_groups_ip_info-' + id + '-' + find_ip_time + '.csv' , index = None)
         # security_groups.to_html('Im_lab_AWS_security_groups_ip_info-' + id + '-' + find_ip_time + '.html' , index = None)
