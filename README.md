@@ -7,7 +7,7 @@ This script is used to fetch source information of IP address for security group
 
 ## Installation
 ```bash 
-https://github.com/jiamaozheng/Imlab-aws_security_group_IP_info.git
+git clone https://github.com/jiamaozheng/fetch-aws-security-group-IP-info.git
 ``` 
 
 ## Command Line Parameters 
